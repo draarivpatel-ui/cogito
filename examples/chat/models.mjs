@@ -45,3 +45,31 @@ export function anthropicModel({ apiKey, baseUrl = "https://api.anthropic.com", 
     emit({ u: usage });
   };
 }
+
+// OpenRouter (OpenAI-compatible chat completions), plain fetch + SSE. Needs OPENROUTER_API_KEY.
+export function openrouterModel({ apiKey, baseUrl = "https://openrouter.ai/api/v1", model = "google/gemini-2.5-flash", fetchImpl = fetch } = {}) {
+  return async (messages, emit, { signal }) => {
+    emit({ s: "waiting" });
+    const res = await fetchImpl(`${baseUrl}/chat/completions`, { method: "POST", signal,
+      headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}`, "x-title": "cogito demo" },
+      body: JSON.stringify({ model, stream: true, stream_options: { include_usage: true }, messages: messages.map(({ role, content }) => ({ role, content })) }) });
+    if (!res.ok) throw Object.assign(new Error(`upstream ${res.status}`), { code: res.status === 429 ? "rate_limit" : "upstream" });
+    const dec = new TextDecoder(); let buf = "", mode = "", usage = null;
+    for await (const chunk of res.body) {
+      buf += dec.decode(chunk, { stream: true });
+      let i; while ((i = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+        if (!line.startsWith("data:")) continue;
+        const data = line.slice(5).trim(); if (data === "[DONE]") continue;
+        const ev = JSON.parse(data);
+        if (ev.error) throw Object.assign(new Error(ev.error.message ?? "upstream error"), { code: "upstream" });
+        if (ev.usage) usage = [ev.usage.prompt_tokens ?? 0, ev.usage.completion_tokens ?? 0];
+        const d = ev.choices?.[0]?.delta; if (!d) continue;
+        const reasoning = d.reasoning ?? d.reasoning_content;
+        if (reasoning) { if (mode !== "thinking") emit({ s: mode = "thinking" }); emit({ r: reasoning }); }
+        if (d.content) { if (mode !== "writing") emit({ s: mode = "writing" }); emit({ t: d.content }); }
+      }
+    }
+    if (usage) emit({ u: usage });
+  };
+}

@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test";
 import { handle } from "./server.mjs";
-import { anthropicModel } from "./models.mjs";
+import { anthropicModel, fakeModel } from "./models.mjs";
 import { cogito } from "../../client/cogito.mjs";
 
 const collect = async (it) => { const o = []; for await (const f of it) o.push(f); return o; };
@@ -30,13 +30,24 @@ test("upstream 429 becomes a rate_limit error frame", async () => {
   expect(fr.at(-1).e.c).toBe("rate_limit"); upstream.stop(); app.stop();
 });
 test("rejects bad history with 400", async () => {
-  const app = Bun.serve({ port: 0, fetch: (req) => handle(req) });
+  const app = Bun.serve({ port: 0, fetch: (req) => handle(req, fakeModel) });
   for (const messages of [[], [{ role: "assistant", content: "x" }], "nope"]) {
     const r = await fetch(`http://localhost:${app.port}/v1/cogito`, { method: "POST", body: JSON.stringify({ messages }) }); expect(r.status).toBe(400);
   } app.stop();
 });
 test("fake model: search words add a step", async () => {
-  const app = Bun.serve({ port: 0, fetch: (req) => handle(req) });
+  const app = Bun.serve({ port: 0, fetch: (req) => handle(req, fakeModel) });
   const fr = await collect(cogito(`http://localhost:${app.port}/v1/cogito`, { messages: [{ role: "user", content: "coffee price" }] }));
   expect(fr.some((f) => f.p === "web" && f.st === "ok")).toBe(true); app.stop();
+});
+
+import { openrouterModel } from "./models.mjs";
+test("openrouter adapter maps OpenAI-style SSE to cogito frames", async () => {
+  const lines = [{ choices: [{ delta: { reasoning: "hm" } }] }, { choices: [{ delta: { content: "Hel" } }] }, { choices: [{ delta: { content: "lo" } }] }, { choices: [], usage: { prompt_tokens: 5, completion_tokens: 2 } }];
+  const upstream = Bun.serve({ port: 0, fetch: async (req) => { expect(req.headers.get("authorization")).toBe("Bearer k");
+    return new Response(lines.map((l) => `data: ${JSON.stringify(l)}\n\n`).join("") + "data: [DONE]\n\n", { headers: { "content-type": "text/event-stream" } }); } });
+  const app = Bun.serve({ port: 0, fetch: (req) => handle(req, openrouterModel({ apiKey: "k", baseUrl: `http://localhost:${upstream.port}` })) });
+  const fr = await collect(cogito(`http://localhost:${app.port}/v1/cogito`, { messages: [{ role: "user", content: "hi" }] }, { level: 2 }));
+  expect(fr.filter((f) => f.t).map((f) => f.t).join("")).toBe("Hello"); expect(fr.filter((f) => f.s).map((f) => f.s)).toEqual(["waiting", "thinking", "writing"]);
+  expect(fr.find((f) => f.u)).toEqual({ u: [5, 2] }); upstream.stop(); app.stop();
 });
