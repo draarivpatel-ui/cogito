@@ -47,7 +47,7 @@ export function anthropicModel({ apiKey, baseUrl = "https://api.anthropic.com", 
 }
 
 // OpenRouter (OpenAI-compatible chat completions), plain fetch + SSE. Needs OPENROUTER_API_KEY.
-export function openrouterModel({ apiKey, baseUrl = "https://openrouter.ai/api/v1", model = "google/gemini-2.5-flash", fetchImpl = fetch } = {}) {
+export function openrouterModel({ apiKey, baseUrl = "https://openrouter.ai/api/v1", model = "openrouter/free", fetchImpl = fetch } = {}) {
   return async (messages, emit, { signal }) => {
     emit({ s: "waiting" });
     const res = await fetchImpl(`${baseUrl}/chat/completions`, { method: "POST", signal,
