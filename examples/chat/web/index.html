@@ -1,0 +1,57 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>cogito chat</title>
+<style>
+ :root{color-scheme:light dark;--bg:#faf8f3;--fg:#111;--mut:#777;--line:#ddd;--you:#efebe1}
+ @media(prefers-color-scheme:dark){:root{--bg:#111;--fg:#eee;--mut:#999;--line:#2c2c2c;--you:#1c1c1c}}
+ *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,sans-serif;display:flex;flex-direction:column;height:100dvh}
+ header{padding:12px 16px;border-bottom:1px solid var(--line);font-weight:600;display:flex;justify-content:space-between} header span{color:var(--mut);font-weight:400;font-size:13px}
+ #log{flex:1;overflow:auto;padding:16px} .wrap{max-width:680px;margin:0 auto}
+ .msg{margin:0 0 20px} .you{background:var(--you);padding:10px 12px;border:1px solid var(--line);white-space:pre-wrap}
+ .status{color:var(--mut);font-size:14px;min-height:1.4em} .status.on::after{content:"...";display:inline-block;width:1.2em;text-align:left;animation:d 1s steps(4) infinite}
+ @keyframes d{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+ .steps{list-style:none;margin:2px 0 6px;padding:0;color:var(--mut);font-size:13px} .text{white-space:pre-wrap}
+ details.why{font-size:13px;color:var(--mut);margin:2px 0 6px} details.why div{white-space:pre-wrap;border-left:2px solid var(--line);padding-left:10px;margin-top:4px}
+ .meta{font-size:12px;color:var(--mut);margin-top:6px} .err{color:#c0392b}
+ form{border-top:1px solid var(--line);padding:12px 16px} form .wrap{display:flex;gap:8px}
+ textarea{flex:1;resize:none;padding:10px;border:1px solid var(--line);background:transparent;color:inherit;font:inherit;max-height:30vh}
+ button,select{padding:0 16px;border:1px solid var(--fg);background:var(--fg);color:var(--bg);font:inherit;cursor:pointer} select{background:transparent;color:inherit;border-color:var(--line);padding:0 6px}
+</style>
+<header><div class="wrap" style="width:100%;display:flex;justify-content:space-between"><b>cogito chat</b><span>
+ <select id="lvl" aria-label="thinking level"><option value="0">state</option><option value="1" selected>steps</option><option value="2">reasoning</option></select></span></div></header>
+<div id="log"><div class="wrap" id="msgs"></div></div>
+<form id="f"><div class="wrap"><textarea id="q" rows="1" placeholder="Ask anything. Try: what is the price of coffee" aria-label="message" autofocus></textarea><button id="go">Send</button></div></form>
+<script type="module">
+import { cogito } from "/cogito.mjs";
+const $ = (id) => document.getElementById(id), msgs = $("msgs"), log = $("log");
+const history = []; let ctl = null;
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
+const scroll = () => { log.scrollTop = log.scrollHeight; };
+
+async function send(text) {
+  history.push({ role: "user", content: text });
+  msgs.append(el("div", "msg you", text));
+  const box = el("div", "msg"), status = el("div", "status on"), steps = el("ul", "steps"), why = el("details", "why"), out = el("div", "text"), meta = el("div", "meta");
+  why.hidden = true; why.append(el("summary", "", "reasoning"), el("div")); box.append(status, steps, why, out, meta); msgs.append(box); scroll();
+  ctl = new AbortController(); $("go").textContent = "Stop";
+  const li = {}; let answer = "", n = 0; const t0 = performance.now(); let first = null, fmt = "";
+  try {
+    for await (const f of cogito("/v1/cogito", { messages: history }, { level: +$("lvl").value, signal: ctl.signal })) {
+      n++; first ??= performance.now() - t0;
+      if (f.h) fmt = f.h.fmt;
+      if (f.s) status.textContent = f.s;
+      if (f.p) { const s = li[f.p] ??= steps.appendChild(el("li")); s.textContent = (f.st === "ok" ? "done: " : f.st === "err" ? "failed: " : "running: ") + (f.l ?? f.p); }
+      if (f.r) { why.hidden = false; why.lastChild.textContent += f.r; }
+      if (f.t) { answer += f.t; out.textContent = answer; }
+      if (f.e) { out.append(el("div", "err", "error: " + f.e.m)); }
+      if (f.d) meta.textContent = `${fmt}, ${n} frames, first frame ${first.toFixed(0)} ms, total ${(performance.now() - t0).toFixed(0)} ms`;
+      scroll();
+    }
+    history.push({ role: "assistant", content: answer });
+  } catch (err) {
+    if (err.name === "AbortError") { meta.textContent = "stopped"; if (answer) history.push({ role: "assistant", content: answer }); else history.pop(); }
+    else { out.append(el("div", "err", "failed: " + err.message)); history.pop(); }
+  } finally { status.textContent = ""; status.classList.remove("on"); ctl = null; $("go").textContent = "Send"; }
+}
+$("f").onsubmit = (e) => { e.preventDefault(); if (ctl) return ctl.abort(); const t = $("q").value.trim(); if (!t) return; $("q").value = ""; send(t); };
+$("q").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("f").requestSubmit(); } };
+</script></html>
