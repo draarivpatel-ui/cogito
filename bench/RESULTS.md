@@ -10,11 +10,11 @@ tokens=400  (bytes on the wire, every frame flushed)
 ├───┼───────────────────────────────┼────────┼───────┼───────┼──────┼──────┼───────┼─────────┤
 │ 0 │ vercel-style SSE              │ 410    │ 24209 │ 26992 │ 4773 │ 4661 │ 30.1  │ 20.1    │
 │ 1 │ openai-style SSE              │ 410    │ 64553 │ 54800 │ 4853 │ 4848 │ 18.6  │ 20.4    │
-│ 2 │ ai-shim NDJSON (short keys)   │ 410    │ 5977  │ 10505 │ 4443 │ 4409 │ 23.8  │ 15.1    │
-│ 3 │ ai-shim binary (len-prefixed) │ 410    │ 3476  │ 8006  │ 4174 │ 4403 │ 84.4  │ 23.6    │
+│ 2 │ cogito NDJSON (short keys)   │ 410    │ 5977  │ 10505 │ 4443 │ 4409 │ 23.8  │ 15.1    │
+│ 3 │ cogito binary (len-prefixed) │ 410    │ 3476  │ 8006  │ 4174 │ 4403 │ 84.4  │ 23.6    │
 └───┴───────────────────────────────┴────────┴───────┴───────┴──────┴──────┴───────┴─────────┘
 
-raw size vs vercel-style SSE: vercel-style SSE: 100% | openai-style SSE: 267% | ai-shim NDJSON (short keys): 25% | ai-shim binary (len-prefixed): 14%
+raw size vs vercel-style SSE: vercel-style SSE: 100% | openai-style SSE: 267% | cogito NDJSON (short keys): 25% | cogito binary (len-prefixed): 14%
 ```
 
 Reading:

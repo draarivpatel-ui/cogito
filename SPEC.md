@@ -1,8 +1,8 @@
-# ai-shim protocol, draft 0
+# cogito protocol, draft 0
 
 Status: draft 0, written 2026-11-22. Not a standard. Nothing here is final.
 
-ai-shim is a way for a browser (or any HTTP client) to talk to an AI backend and see
+cogito is a way for a browser (or any HTTP client) to talk to an AI backend and see
 what the AI is doing while it works: `thinking`, `searching`, `writing`, then the answer.
 It is plain HTTP and plain `fetch`. It needs no SDK, no OpenAI types, no EventSource and
 no WebSocket. It works in every browser that exists today.
@@ -21,15 +21,15 @@ Non-goals: tool-calling schemas, model APIs, auth, billing. Those stay in the ap
 ## 2. Request
 
 ```
-POST /v1/shim HTTP/1.1
+POST /v1/cogito HTTP/1.1
 Content-Type: application/json
-Accept: application/vnd.flisk.shim.bin, application/vnd.flisk.shim+ndjson;q=0.9, text/event-stream;q=0.5
+Accept: application/vnd.flisk.cogito.bin, application/vnd.flisk.cogito+ndjson;q=0.9, text/event-stream;q=0.5
 Accept-Encoding: zstd, br, gzip
-Shim-Level: 1
+Cogito-Level: 1
 ```
 
-The body is app-defined JSON (for chat: `{ "messages": [...] }`). ai-shim does not
-constrain it. `Shim-Level` is how much thinking the client wants: `0` state only,
+The body is app-defined JSON (for chat: `{ "messages": [...] }`). cogito does not
+constrain it. `Cogito-Level` is how much thinking the client wants: `0` state only,
 `1` state and steps (default), `2` also reasoning text. A server may serve a lower level
 and says so in the `hello` frame. It must never serve a higher one.
 
@@ -40,8 +40,8 @@ The server picks the best profile it supports from `Accept` and answers with tha
 
 | Profile | Content-Type | Use when |
 |---|---|---|
-| bin | `application/vnd.flisk.shim.bin` | both ends are ours, bandwidth matters |
-| ndjson | `application/vnd.flisk.shim+ndjson` | default, readable with `curl` |
+| bin | `application/vnd.flisk.cogito.bin` | both ends are ours, bandwidth matters |
+| ndjson | `application/vnd.flisk.cogito+ndjson` | default, readable with `curl` |
 | sse | `text/event-stream` | a proxy refuses unknown types; each line is `data: <ndjson line>\n\n` |
 
 Client rules:
@@ -91,7 +91,7 @@ We claim only what a client can check:
 - `h.ret` states the server's retention promise: `none`, `session` or `logged`.
   This is a declaration by the server, not proof.
 - `d.sig` is an optional Ed25519 signature over the SHA-256 of all frame bytes, with the
-  key published by the server at `/.well-known/shim-keys`. It proves who produced the
+  key published by the server at `/.well-known/cogito-keys`. It proves who produced the
   stream and that nothing was changed in transit or by a proxy.
 - Draft 0 does **not** claim zero knowledge. The server sees the prompt. Zero knowledge
   needs confidential compute with attestation; track it as a later profile.

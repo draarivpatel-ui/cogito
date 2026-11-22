@@ -32,11 +32,11 @@ const FORMATS = {
   // OpenAI chat.completions chunk style, for reference only.
   "openai-style SSE": () => L.map((f) => sse({ id: "chatcmpl-1", object: "chat.completion.chunk", created: 1, model: "m",
     choices: [{ index: 0, delta: f.k === "text" ? { content: f.v } : { role: "assistant" }, finish_reason: null }] })),
-  "ai-shim NDJSON (short keys)": () => L.map((f) => nd(
+  "cogito NDJSON (short keys)": () => L.map((f) => nd(
     f.k === "text" ? { t: f.v } : f.k === "state" ? { s: f.v } : f.k === "step" ? { p: f.id, st: f.st }
     : f.k === "usage" ? { u: [f.in, f.out] } : { d: 1 })),
   // 1 byte type + 2 byte length + utf8 payload.
-  "ai-shim binary (len-prefixed)": () => L.map((f) => {
+  "cogito binary (len-prefixed)": () => L.map((f) => {
     const code = { text: 1, state: 2, step: 3, usage: 4, done: 5 }[f.k];
     const body = enc.encode(f.k === "text" || f.k === "state" ? f.v : f.k === "step" ? f.id + ":" + f.st : f.k === "usage" ? f.in + "," + f.out : "");
     const b = new Uint8Array(3 + body.length); b[0] = code; b[1] = body.length >> 8; b[2] = body.length & 255; b.set(body, 3); return b;

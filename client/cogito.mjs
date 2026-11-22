@@ -1,8 +1,8 @@
-// ai-shim client, draft 0. Zero dependencies, fetch only.
-// for await (const f of shim("/v1/shim", { messages })) { ... }
+// cogito client, draft 0. Zero dependencies, fetch only.
+// for await (const f of cogito("/v1/cogito", { messages })) { ... }
 const ACCEPT = {
-  bin: "application/vnd.flisk.shim.bin, application/vnd.flisk.shim+ndjson;q=0.9, text/event-stream;q=0.5",
-  ndjson: "application/vnd.flisk.shim+ndjson, text/event-stream;q=0.5",
+  bin: "application/vnd.flisk.cogito.bin, application/vnd.flisk.cogito+ndjson;q=0.9, text/event-stream;q=0.5",
+  ndjson: "application/vnd.flisk.cogito+ndjson, text/event-stream;q=0.5",
   sse: "text/event-stream",
 };
 const LADDER = ["bin", "ndjson", "sse"];
@@ -19,7 +19,7 @@ async function* parse(res) {
   const type = res.headers.get("content-type") || "";
   if (type.startsWith("text/event-stream")) {
     for await (const l of lines(res.body)) if (l.startsWith("data:")) yield JSON.parse(l.slice(5).trim());
-  } else if (type.includes("shim.bin")) {
+  } else if (type.includes("cogito.bin")) {
     const T = { 1: "t", 2: "s", 6: "h", 3: "p", 4: "u", 7: "e", 8: "r" };
     const dec = new TextDecoder(); let buf = new Uint8Array(0);
     for await (const c of res.body) {
@@ -36,23 +36,23 @@ async function* parse(res) {
   } else { for await (const l of lines(res.body)) yield JSON.parse(l); }
 }
 
-export async function* shim(url, body, { level = 1, start = "ndjson", helloTimeoutMs = 5000, fetchImpl = fetch, signal } = {}) {
+export async function* cogito(url, body, { level = 1, start = "ndjson", helloTimeoutMs = 5000, fetchImpl = fetch, signal } = {}) {
   for (let rung = LADDER.indexOf(start); rung < LADDER.length; rung++) {
     const ctl = new AbortController(); signal?.addEventListener("abort", () => ctl.abort());
     const timer = setTimeout(() => ctl.abort(), helloTimeoutMs);
     let res;
     try {
       res = await fetchImpl(url, { method: "POST", signal: ctl.signal, body: JSON.stringify(body),
-        headers: { "content-type": "application/json", accept: ACCEPT[LADDER[rung]], "shim-level": String(level) } });
+        headers: { "content-type": "application/json", accept: ACCEPT[LADDER[rung]], "cogito-level": String(level) } });
     } catch (e) { clearTimeout(timer); if (signal?.aborted) throw e; continue; }
     if (res.status === 406 || res.status === 415) { clearTimeout(timer); continue; }
-    if (!res.ok) { clearTimeout(timer); throw new Error(`shim: HTTP ${res.status}`); }
+    if (!res.ok) { clearTimeout(timer); throw new Error(`cogito: HTTP ${res.status}`); }
     let first = true;
     try {
       for await (const frame of parse(res)) { if (first) { clearTimeout(timer); first = false; } yield frame; if (frame.d || frame.e) return; }
     } catch (e) { if (first && !signal?.aborted) { clearTimeout(timer); continue; } throw e; }
     clearTimeout(timer);
-    if (!first) throw new Error("shim: stream ended without a done frame");
+    if (!first) throw new Error("cogito: stream ended without a done frame");
   }
-  throw new Error("shim: no profile worked");
+  throw new Error("cogito: no profile worked");
 }
