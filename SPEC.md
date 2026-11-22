@@ -59,7 +59,7 @@ One JSON object per line, one discriminating key per frame.
 
 | Frame | Meaning |
 |---|---|
-| `{"h":{"v":1,"id":"r_8f2","lvl":1,"ret":"none"}}` | hello: version, run id, served level, retention |
+| `{"h":{"v":1,"id":"r_8f2","lvl":1,"ret":"none","fmt":"ndjson"}}` | hello: version, run id, served level, retention, profile in use |
 | `{"s":"thinking"}` | state: `thinking` `searching` `reading` `writing` `waiting` |
 | `{"p":"web","st":"run","l":"Checking price"}` | step: id, status `run`/`ok`/`err`, optional label (level 1+) |
 | `{"t":" word"}` | answer text delta |
