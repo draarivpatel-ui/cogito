@@ -60,12 +60,13 @@ One JSON object per line, one discriminating key per frame.
 | Frame | Meaning |
 |---|---|
 | `{"h":{"v":1,"id":"r_8f2","lvl":1,"ret":"none","fmt":"ndjson"}}` | hello: version, run id, served level, retention, profile in use |
-| `{"s":"thinking"}` | state: `thinking` `searching` `reading` `writing` `waiting` |
+| `{"s":"thinking"}` | state: `thinking` `searching` `reading` `writing` `working` `waiting` |
 | `{"p":"web","st":"run","l":"Checking price"}` | step: id, status `run`/`ok`/`err`, optional label (level 1+) |
 | `{"t":" word"}` | answer text delta |
 | `{"r":"..."}` | reasoning text delta (level 2 only) |
 | `{"u":[812,400]}` | usage: input and output tokens |
 | `{"e":{"c":"rate_limit","m":"..."}}` | error: stable code, human message |
+| `{"x":{...}}` | extension: an app-defined event, ignored by clients that do not know it (chat.flisk.si carries its own events this way) |
 | `{"d":1,"sig":"..."}` | done; `sig` optional (section 7) |
 
 Rules: the first frame is `h`. The last is `d` or `e`. Unknown keys must be ignored,
