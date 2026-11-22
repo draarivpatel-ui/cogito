@@ -38,3 +38,35 @@ test("client abort reaches the model", async () => {
   try { for await (const f of cogito(`http://localhost:${s.port}/`, {}, { signal: ac.signal })) { if (f.t) ac.abort(); } } catch (e) { expect(e.name).toBe("AbortError"); }
   await new Promise((r) => setTimeout(r, 100)); expect(aborted).toBe(true); s.stop();
 });
+
+// ---- compression ----------------------------------------------------------------------------------------------
+const slow = async (emit) => { emit({ t: "one" }); await new Promise((r) => setTimeout(r, 150)); emit({ t: "two" }); };
+const timed = async (url, headers) => {
+  const res = await fetch(url, { method: "POST", headers });
+  const t0 = performance.now(), seen = []; let text = "";
+  for await (const chunk of res.body) { const s = new TextDecoder().decode(chunk); text += s; if (s.includes("one") || s.includes("two")) seen.push([performance.now() - t0, s.includes("one") ? "one" : "two"]); }
+  return { res, text, seen };
+};
+for (const codec of ["zstd", "br", "gzip"]) {
+  test(`${codec}: negotiated, decodes, and each frame leaves at once`, async () => {
+    const s = Bun.serve({ port: 0, fetch: (req) => cogitoResponse(req, slow) });
+    const { res, text, seen } = await timed(`http://localhost:${s.port}/`, { "accept-encoding": codec });
+    expect(res.headers.get("content-encoding")).toBe(codec);
+    expect(text).toContain('{"t":"one"}'); expect(text).toContain('{"t":"two"}');
+    const one = seen.find((x) => x[1] === "one")[0], two = seen.find((x) => x[1] === "two")[0];
+    expect(two - one).toBeGreaterThan(100);   // "one" was not held back until "two" was ready
+    s.stop();
+  });
+}
+test("prefers zstd over br over gzip, and no codec when none accepted", async () => {
+  const s = Bun.serve({ port: 0, fetch: (req) => cogitoResponse(req, async () => {}) });
+  const enc = async (h) => (await fetch(`http://localhost:${s.port}/`, { method: "POST", headers: h })).headers.get("content-encoding");
+  expect(await enc({ "accept-encoding": "gzip, br, zstd" })).toBe("zstd");
+  expect(await enc({ "accept-encoding": "gzip, br" })).toBe("br");
+  expect(await enc({ "accept-encoding": "identity" })).toBeNull();
+  s.stop();
+});
+test("compress: false sends the stream as is", async () => {
+  const s = Bun.serve({ port: 0, fetch: (req) => cogitoResponse(req, async () => {}, { compress: false }) });
+  expect((await fetch(`http://localhost:${s.port}/`, { method: "POST", headers: { "accept-encoding": "zstd" } })).headers.get("content-encoding")).toBeNull(); s.stop();
+});

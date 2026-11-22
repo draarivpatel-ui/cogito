@@ -49,9 +49,15 @@ Client rules:
 - A server must not retry on the client's behalf. The client owns the ladder.
 - All profiles carry the same frames (section 4); only the encoding differs.
 
-Compression: servers should flush after every frame. Use `zstd` or `br` for streams.
-`gzip` is not recommended: with a flush per frame it was larger than no compression
-in our benchmark (see `bench/RESULTS.md`).
+Compression is optional. A server that compresses must flush after every frame, and the
+client must be able to read frames as they arrive. Use `zstd` or `br`; `gzip` is not
+recommended (with a flush per frame it was larger than no compression in `bench/RESULTS.md`).
+
+Measured on Cloudflare Workers (`bench/CDN.md`): the edge streams every frame and does not
+compress this media type, so a stream there goes out as plain NDJSON, which is small enough.
+Do not compress inside a Worker with `CompressionStream`: it buffers and the frames arrive
+together at the end. Where `node:zlib` is available, `server/cogito-server.mjs` compresses
+with a flush per frame.
 
 ## 4. Frames (ndjson profile)
 
@@ -101,6 +107,6 @@ We claim only what a client can check:
 
 - Should `bin` exist at all? In our benchmark it won uncompressed (14%) but under
   `br`/`zstd` it is within 6% of NDJSON.
-- Do real CDNs flush `br`/`zstd` per frame? Test on Cloudflare, Render and nginx.
+- Do other proxies flush per frame? Cloudflare does (`bench/CDN.md`); Render and nginx are untested.
 - Resume after a dropped connection (`Last-Frame` header?).
 - Frame for cancel (client abort is just closing the request; is that enough?).
