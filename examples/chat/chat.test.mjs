@@ -23,6 +23,30 @@ test("anthropic adapter maps upstream SSE to cogito frames", async () => {
   expect(fr.find((f) => f.r)).toEqual({ r: "hm" }); expect(fr.find((f) => f.u)).toEqual({ u: [7, 2] }); expect(fr.at(-1)).toEqual({ d: 1 });
   upstream.stop(); app.stop();
 });
+test("anthropic adapter reads CRLF-delimited SSE across chunks", async () => {
+  const events = [
+    { type: "content_block_delta", delta: { type: "text_delta", text: "Hello" } },
+    { type: "message_delta", usage: { output_tokens: 2 } },
+  ];
+  const encoder = new TextEncoder();
+  const body = new ReadableStream({
+    start(controller) {
+      for (const chunk of [
+        `event: ${events[0].type}\r`,
+        `\ndata: ${JSON.stringify(events[0])}\r\n\r`,
+        `\nevent: ${events[1].type}\r\ndata: ${JSON.stringify(events[1])}\r\n\r\n`,
+      ]) controller.enqueue(encoder.encode(chunk));
+      controller.close();
+    },
+  });
+  const model = anthropicModel({
+    apiKey: "k",
+    fetchImpl: async () => new Response(body, { headers: { "content-type": "text/event-stream" } }),
+  });
+  const frames = [];
+  await model([{ role: "user", content: "hi" }], (frame) => frames.push(frame), {});
+  expect(frames).toEqual([{ s: "waiting" }, { t: "Hello" }, { u: [0, 2] }]);
+});
 test("upstream 429 becomes a rate_limit error frame", async () => {
   const upstream = Bun.serve({ port: 0, fetch: () => new Response("slow", { status: 429 }) });
   const app = Bun.serve({ port: 0, fetch: (req) => handle(req, anthropicModel({ apiKey: "k", baseUrl: `http://localhost:${upstream.port}` })) });
