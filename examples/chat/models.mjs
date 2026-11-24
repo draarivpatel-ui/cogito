@@ -29,9 +29,9 @@ export function anthropicModel({ apiKey, baseUrl = "https://api.anthropic.com", 
     const dec = new TextDecoder(); let buf = "", usage = [0, 0];
     for await (const chunk of res.body) {
       buf += dec.decode(chunk, { stream: true });
-      let i; while ((i = buf.indexOf("\n\n")) >= 0) {
-        const block = buf.slice(0, i); buf = buf.slice(i + 2);
-        const data = block.split("\n").find((l) => l.startsWith("data:")); if (!data) continue;
+      let boundary; while ((boundary = /\r?\n\r?\n/.exec(buf))) {
+        const block = buf.slice(0, boundary.index); buf = buf.slice(boundary.index + boundary[0].length);
+        const data = block.split(/\r?\n/).find((l) => l.startsWith("data:")); if (!data) continue;
         const ev = JSON.parse(data.slice(5));
         if (ev.type === "message_start") usage[0] = ev.message?.usage?.input_tokens ?? 0;
         else if (ev.type === "content_block_start") emit({ s: ev.content_block.type === "thinking" ? "thinking" : ev.content_block.type === "text" ? "writing" : "searching" });
